@@ -1,12 +1,9 @@
 function loadProducts() {
-        
-    if (isLoading) return; // Если уже идет загрузка, выходим
+    if (isLoading) return;
     isLoading = true;
 
-    // console.log(`sort: ${sort}, order: ${order}, query: ${query}, page: ${currentPage}, limit: ${productsPerPage}`);
-
     $.ajax({
-        url: '../includes/get_products.php', // Укажите правильный URL вашего API
+        url: '../includes/get_products.php',
         method: 'GET',
         dataType: 'json',
         data: {
@@ -14,7 +11,8 @@ function loadProducts() {
             limit: productsPerPage,
             sort: sort,
             order: order,
-            query: query ? query : ''
+            query: query ? query : '',
+            category_id: selectedCategory ? selectedCategory : ''
         },
         success: function(products) {
             if (currentPage ===1 ){
@@ -22,55 +20,54 @@ function loadProducts() {
             }
             console.log(`sort: ${sort}, order: ${order}, query: ${query}, page: ${currentPage}, limit: ${productsPerPage}, products: ${products.length}`);
             if (!products.length) {
-                // Если продуктов нет, не нужно больше загружать
-                console.log('Продукты закончились');
-                $(window).off('scroll', checkScroll); // Удаляем обработчик скролла
+                $(window).off('scroll', checkScroll);
                 return;
             }
-            console.log(`Render, page: ${currentPage}, products: ${products.length}`);
-            console.log(products)
             products.forEach(function (product) {
                 $('#product-list').append(`
                     <div class="product card mb-4" style="width: 18rem;">
-                    <img src="${product.image}" class="card-img-top" alt="${product.name}">
+                    <img src="${imgPath}" class="card-img-top" alt="${product.name}">
                     <div class="card-body">
-                        <h5 class="card-title">${product.name}</h5>
-                        <p class="card-text">${product.description}</p>
-                        <p class="price">Цена: <strong>${product.price}₴</strong></p>
-                        <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
+                        <div class="info-in-card-body">
+                            <h5 class="card-title">${product.name}</h5>
+                            <p class="card-text">${product.description}</p>
+                        </div>
+                        <div class="price-and-buttons">
+                            <p class="price">Цена: <strong>${product.price}₴</strong></p>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
+                                <a href="product.php?id=${product.id}" class="btn btn-outline-secondary">Подробнее</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 `);
             });
 
-            currentPage++; // Переходим к следующей странице
+            currentPage++;
         },
         error: function(xhr, status, error) {
             console.error('Ошибка при загрузке продуктов:', error);
-            alert('Произошла ошибка при загрузке продуктов: ' + error.message);
         },
         complete: function() {
-            isLoading = false; // Сбрасываем флаг после загрузки
+            isLoading = false;
         }
     });
     
 }
 
-// Загрузка категорий
 function loadCategories() {
     $.ajax({
-        url: '../includes/get_categories.php', // Укажите правильный URL для вашего PHP-скрипта
+        url: '../includes/get_categories.php',
         method: 'GET',
         dataType: 'json',
         success: function (data) {
-            $('#category-list').empty(); // Очищаем предыдущие категории
+            $('#category-list').empty();
             try {
                 if (Array.isArray(data)) {
                     data.forEach(function (category) {
                         $('#category-list').append(`
-                            <div class="category">
-                                <h3>${category.name}</h3>
-                            </div>
+                            <div class="category" data-id="${category.id}">${category.name}</div>
                         `);
                     });
                 } else {
@@ -87,26 +84,23 @@ function loadCategories() {
 }
 
 function checkScroll(sort, order) {
-    const windowHeight = $(window).height(); // Высота окна
-    const documentHeight = $(document).height(); // Высота документа
-    const scrollY = $(window).scrollTop(); // Положение прокрутки по Y
+    const windowHeight = $(window).height();
+    const documentHeight = $(document).height();
+    const scrollY = $(window).scrollTop();
 
-    // Если пользователь прокрутил почти до конца страницы
     if (scrollY + windowHeight >= documentHeight - 100) {
-        loadProducts(sort, order); // Загружаем продукты
+        loadProducts(sort, order);
     }
 }
 
 function updateCartCount() {
-    // Получите количество товаров из сессии на сервере
     $.ajax({
-        url: '../includes/get_cart_count.php', // путь к вашему PHP скрипту для получения количества товаров в корзине
+        url: '../includes/get_cart_count.php',
         method: 'GET',
         dataType: 'json',
         success: function(response) {
             if (response.count !== undefined) {
-                // Обновите элемент с количеством товаров в корзине
-                $('#cart-count').text(response.count); // Предполагаем, что у вас есть элемент с ID cart-count
+                $('#cart-count').text(response.count);
             }
         },
         error: function(xhr, status, error) {
@@ -115,23 +109,8 @@ function updateCartCount() {
     });
 }
 
-function clearCart() {
-    // Отправляем AJAX-запрос для очистки корзины на сервере
-    $.ajax({
-        url: '../includes/clear_cart.php', // Укажите путь к вашему PHP-скрипту для очистки корзины
-        method: 'POST',
-        success: function(response) {
-            // Проверка успешности операции
-            if (response.success) {
-                // Обновляем страницу, чтобы показать пустую корзину
-                location.reload();
-            } else {
-                alert('Ошибка при очистке корзины. Попробуйте еще раз.');
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Ошибка при очистке корзины:', error);
-            alert('Произошла ошибка. Попробуйте еще раз.');
-        }
-    });
+function updateCartTotal(total, clear) {
+    const before = parseFloat($('.cart-total').text());
+    const newTotal = clear ? 0 : before - total;
+    $('.cart-total').text(`${newTotal.toFixed(2)} грн.`);
 }

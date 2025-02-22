@@ -1,56 +1,34 @@
-let i = 0;
+let firstTimeRender = 0
 
 $(document).ready(function () {
     $.ajax({
-        url: '../includes/get_cart_count.php', // Укажите правильный URL для вашего PHP-скрипта
+        url: '../includes/get_cart_count.php',
         method: 'GET',
         dataType: 'json',
-        success: function (data) {$('#cart-count').text(data.count);}
-    })
+        success: function(response) {
+            if (response.count !== undefined) {
+                $('.cart-count').text(response.count);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Ошибка при получении количества товаров в корзине:', error);
+        }
+    });
+    
+    window.onpageshow = function(event) {
+        if (event.persisted) {
+            updateCartCount();
+        }
+    };
+    updateCartCount();
 
-    // Добавляем обработчик события прокрутки
     $(window).on('scroll', checkScroll);
-    scrollEventAttached = true;
 
-    // Загрузка товаров
-    // $.ajax({
-    //     url: '../includes/get_products.php',
-    //     method: 'GET',
-    //     dataType: 'json',
-    //     data: {
-    //         sort: 'name',
-    //         order: 'asc'
-    //     },
-    //     success: function (data) {
-    //         $('#product-list').empty(); // Очищаем предыдущие товары
-    //         data.forEach(function (product) {
-    //             $('#product-list').append(`
-    //                 <div class="product card mb-4" style="width: 18rem;">
-    //                 <img src="${product.image}" class="card-img-top" alt="${product.name}">
-    //                 <div class="card-body">
-    //                     <h5 class="card-title">${product.name}</h5>
-    //                     <p class="card-text">${product.description}</p>
-    //                     <p class="price">Цена: <strong>${product.price}₴</strong></p>
-    //                     <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
-    //                 </div>
-    //             </div>
-    //             `);
-    //         });
-    //     },
-    //     error: function (xhr, status, error) {
-    //         console.error('Ошибка при загрузке товаров:', error);
-    //     }
-    // });
-
-    if (i === 0){
+    if (firstTimeRender === 0){
         loadProducts();
-        i++;
+        firstTimeRender++;
     }
 
-    console.log('products loaded')
-    
-
-    // Поиск товаров
     $('#search').on('input', function () {
         currentPage = 1;
         query = $(this).val();
@@ -66,23 +44,24 @@ $(document).ready(function () {
                 order: order
             },
             success: function (data) {
-                console.log(data); // Логируем данные для отладки
-                $('#product-list').empty(); // Очищаем предыдущие товары
+                $('#product-list').empty();
                 try {
                     if (!data.length){
-                        console.log('Продукты закончились');
-                        $(window).off('scroll', checkScroll); // Удаляем обработчик скролла
+                        $(window).off('scroll', checkScroll);
                         return;
                     }
                     data.forEach(function (product) {
                         $('#product-list').append(`
                             <div class="product card mb-4" style="width: 18rem;">
-                            <img src="${product.image}" class="card-img-top" alt="${product.name}">
+                            <img src="${imgPath}" class="card-img-top" alt="${product.name}">
                             <div class="card-body">
                                 <h5 class="card-title">${product.name}</h5>
                                 <p class="card-text">${product.description}</p>
                                 <p class="price">Цена: <strong>${product.price}₴</strong></p>
-                                <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
+                                    <a href="product.php?id=${product.id}" class="btn btn-outline-secondary">Подробнее</a>
+                                </div>
                             </div>
                         </div>
                         `);
@@ -96,16 +75,15 @@ $(document).ready(function () {
         });
     });
 
-    // Добавление товара в корзину
     $(document).on('click', '.add-to-cart', function() {
         $.ajax({
-            url: '../includes/add_to_cart.php', // путь к вашему PHP скрипту
+            url: '../includes/add_to_cart.php',
             method: 'POST',
             dataType: 'json',
             data: { product_id: $(this).data('id') },
             success: function(response) {
                 if (response.success) {
-                    updateCartCount(); // функция для обновления количества товаров в корзине
+                    updateCartCount();
                 } else {
                     alert('Ошибка: ' + response.message);
                 }
@@ -118,7 +96,7 @@ $(document).ready(function () {
     });
     
     $('#sort').on('change', function () {
-        currentPage = 1; // Сбросить на первую страницу
+        currentPage = 1;
         $('#product-list').empty();
         const selectedSort = $(this).val().split('_');
         sort = selectedSort[0]; 
@@ -130,17 +108,97 @@ $(document).ready(function () {
         loadProducts();
     });
 
-    // Куки
+    $('.remove-from-cart').on('click', function () {
+        let button = $(this);
+        let productId = button.data('id');
+        let productPrice = button.data('price');
+    
+        $.ajax({
+            url: '../includes/remove_from_cart.php',
+            method: 'POST',
+            dataType: 'json',
+            data: { product_id: productId },
+            success: function(response) {
+                if (response.status === 'success') {
+                    if (response.quantity_in_cart === 0) {
+                        button.closest('tr').remove();
+                    }
+                    else button.closest('tr').find('.count-of-product').text(`x${response.quantity_in_cart}`);
+    
+                    if (response.cart_empty) {
+                        $('.alert').show();
+                        $('.table').hide();
+                        $('.total-price-container').hide();
+                        $('.full-clear-cart').hide();
+                    }
+                    
+                    updateCartTotal(productPrice);
+
+                    updateCartCount();
+                } else {
+                    alert('Ошибка: ' + response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Ошибка при удалении товара из корзины:', error);
+                alert('Произошла ошибка. Попробуйте еще раз.');
+            }
+        });
+    });
+    
+    
+    $('.full-clear-cart').on('click', function () {
+        $.ajax({
+            url: '../includes/clear_cart.php',
+            method: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                $('.alert').show();
+                $('.table').hide();
+                $('.total-price-container').hide();
+                $('.full-clear-cart').hide();
+                
+                updateCartTotal(0, true);
+
+                updateCartCount();
+            },
+            error: function(xhr, status, error) {
+                console.error('Ошибка при удалении товара из корзины:', error);
+                alert('Произошла ошибка. Попробуйте еще раз.');
+            }
+        });
+    });
+
+    $(document).on('click', '.category', function () {
+        let categoryId = $(this).data('id');
+
+        if (selectedCategory === categoryId) {
+            selectedCategory = '';
+            $(this).removeClass('seted');
+            $('.category').removeClass('seted');
+        } else {
+            selectedCategory = categoryId;
+            $('.category').removeClass('seted');
+            $(this).addClass('seted');
+        }
+
+        $(window).off('scroll', checkScroll);
+        $(window).on('scroll', checkScroll);
+
+        currentPage = 1;
+        $('#product-list').empty();
+
+        loadProducts();
+    });
+
     $('#cookie-accept').on('click', function () {
         $('#cookie-popup').hide();
         localStorage.setItem('cookiesAccepted', 'true');
     });
 
-    // Проверка куки
     if (!localStorage.getItem('cookiesAccepted')) {
         $('#cookie-popup').show();
     }
 
-    // Инициализация
     loadCategories();
 });
