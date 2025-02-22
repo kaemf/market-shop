@@ -1,6 +1,9 @@
-function loadProducts(sort, order) {
+function loadProducts() {
+        
     if (isLoading) return; // Если уже идет загрузка, выходим
     isLoading = true;
+
+    // console.log(`sort: ${sort}, order: ${order}, query: ${query}, page: ${currentPage}, limit: ${productsPerPage}`);
 
     $.ajax({
         url: '../includes/get_products.php', // Укажите правильный URL вашего API
@@ -9,15 +12,23 @@ function loadProducts(sort, order) {
         data: {
             page: currentPage,
             limit: productsPerPage,
-            sort: sort ?? 'name',
-            order: order ?? 'asc'
+            sort: sort,
+            order: order,
+            query: query ? query : ''
         },
         success: function(products) {
-            if (products.length === 0) {
+            if (currentPage ===1 ){
+                $('#product-list').empty();
+            }
+            console.log(`sort: ${sort}, order: ${order}, query: ${query}, page: ${currentPage}, limit: ${productsPerPage}, products: ${products.length}`);
+            if (!products.length) {
                 // Если продуктов нет, не нужно больше загружать
+                console.log('Продукты закончились');
                 $(window).off('scroll', checkScroll); // Удаляем обработчик скролла
                 return;
             }
+            console.log(`Render, page: ${currentPage}, products: ${products.length}`);
+            console.log(products)
             products.forEach(function (product) {
                 $('#product-list').append(`
                     <div class="product card mb-4" style="width: 18rem;">
@@ -42,6 +53,7 @@ function loadProducts(sort, order) {
             isLoading = false; // Сбрасываем флаг после загрузки
         }
     });
+    
 }
 
 // Загрузка категорий

@@ -5,7 +5,7 @@
 <aside id="category-list"></aside>
 
 <input type="text" id="search" placeholder="Поиск товаров...">
-<select id="sort-options">
+<select id="sort">
     <option value="name_asc">Сортировать по названию (A-Z)</option>
     <option value="name_desc">Сортировать по названию (Z-A)</option>
     <option value="price_asc">Сортировать по цене (дешевле)</option>
